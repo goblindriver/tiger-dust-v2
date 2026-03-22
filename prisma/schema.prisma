@@ -1,0 +1,388 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String                  @id @default(uuid()) @db.Uuid
+  authProviderUserId String?                 @unique @map("auth_provider_user_id")
+  email              String?                 @unique
+  displayName        String                  @map("display_name")
+  role               String                  @default("operator")
+  isActive           Boolean                 @default(true) @map("is_active")
+  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz
+  createdObjects     Object[]                @relation("ObjectCreatedBy")
+  updatedObjects     Object[]                @relation("ObjectUpdatedBy")
+  locationHistory    ObjectLocationHistory[]
+  workflowEvents     WorkflowEvent[]
+  mediaShot          MediaAsset[]
+  researchEntries    ResearchEntry[]
+  collections        Collection[]
+  valuations         ObjectValuation[]
+
+  @@map("users")
+}
+
+model ObjectType {
+  id          String   @id @default(uuid()) @db.Uuid
+  slug        String   @unique
+  name        String
+  description String?
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  objects     Object[]
+
+  @@map("object_types")
+}
+
+model Object {
+  id                   String                  @id @default(uuid()) @db.Uuid
+  slug                 String?                 @unique
+  title                String
+  subtitle             String?
+  objectTypeId         String?                 @map("object_type_id") @db.Uuid
+  lifecycleStatus      String                  @default("acquired") @map("lifecycle_status")
+  routeIntent          String                  @default("undecided") @map("route_intent")
+  visibility           String                  @default("internal")
+  descriptionShort     String?                 @map("description_short")
+  descriptionLong      String?                 @map("description_long")
+  materials            String?
+  dimensions           Json?
+  conditionNotes       String?                 @map("condition_notes")
+  isOneOfAKind         Boolean                 @default(true) @map("is_one_of_a_kind")
+  isBatchItem          Boolean                 @default(false) @map("is_batch_item")
+  isArchival           Boolean                 @default(false) @map("is_archival")
+  isActive             Boolean                 @default(true) @map("is_active")
+  intakeStage          String                  @default("draft") @map("intake_stage")
+  dateAcquired         DateTime?               @map("date_acquired") @db.Timestamptz
+  acquisitionType      String?                 @map("acquisition_type")
+  acquisitionSource    String?                 @map("acquisition_source")
+  costBasisCents       Int?                    @map("cost_basis_cents")
+  askingPriceCents     Int?                    @map("asking_price_cents")
+  soldPriceCents       Int?                    @map("sold_price_cents")
+  currency             String                  @default("USD")
+  primaryLocationId    String?                 @map("primary_location_id") @db.Uuid
+  primaryImageId       String?                 @unique @map("primary_image_id") @db.Uuid
+  squareItemId         String?                 @map("square_item_id")
+  squareVariationId    String?                 @map("square_variation_id")
+  publishedAt          DateTime?               @map("published_at") @db.Timestamptz
+  soldAt               DateTime?               @map("sold_at") @db.Timestamptz
+  archivedAt           DateTime?               @map("archived_at") @db.Timestamptz
+  createdByUserId      String?                 @map("created_by_user_id") @db.Uuid
+  updatedByUserId      String?                 @map("updated_by_user_id") @db.Uuid
+  createdAt            DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime                @updatedAt @map("updated_at") @db.Timestamptz
+  objectType           ObjectType?             @relation(fields: [objectTypeId], references: [id])
+  primaryLocation      Location?               @relation("ObjectPrimaryLocation", fields: [primaryLocationId], references: [id])
+  primaryImage         MediaAsset?             @relation("ObjectPrimaryImage", fields: [primaryImageId], references: [id])
+  createdBy            User?                   @relation("ObjectCreatedBy", fields: [createdByUserId], references: [id])
+  updatedBy            User?                   @relation("ObjectUpdatedBy", fields: [updatedByUserId], references: [id])
+  tagLinks             ObjectTag[]
+  locationHistory      ObjectLocationHistory[]
+  workflowEvents       WorkflowEvent[]
+  mediaAssets          MediaAsset[]            @relation("ObjectMediaAssets")
+  researchEntries      ResearchEntry[]
+  collectionLinks      CollectionObject[]
+  salesRecords         SalesRecord[]
+  publishProfile       PublishProfile?
+  inventoryItems       InventoryItem[]
+  outgoingRelations    ObjectRelationship[]    @relation("ObjectRelationshipSource")
+  incomingRelations    ObjectRelationship[]    @relation("ObjectRelationshipTarget")
+  valuations           ObjectValuation[]
+
+  @@index([lifecycleStatus])
+  @@index([routeIntent])
+  @@index([visibility])
+  @@index([primaryLocationId])
+  @@map("objects")
+}
+
+model Tag {
+  id          String      @id @default(uuid()) @db.Uuid
+  slug        String      @unique
+  name        String
+  tagType     String?     @map("tag_type")
+  description String?
+  isActive    Boolean     @default(true) @map("is_active")
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  objectLinks ObjectTag[]
+
+  @@map("tags")
+}
+
+model ObjectTag {
+  objectId  String   @map("object_id") @db.Uuid
+  tagId     String   @map("tag_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  object    Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([objectId, tagId])
+  @@map("object_tags")
+}
+
+model Location {
+  id                String                  @id @default(uuid()) @db.Uuid
+  parentLocationId  String?                 @map("parent_location_id") @db.Uuid
+  slug              String                  @unique
+  name              String
+  locationType      String                  @map("location_type")
+  description       String?
+  isActive          Boolean                 @default(true) @map("is_active")
+  sortOrder         Int                     @default(0) @map("sort_order")
+  createdAt         DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime                @updatedAt @map("updated_at") @db.Timestamptz
+  parentLocation    Location?               @relation("LocationHierarchy", fields: [parentLocationId], references: [id])
+  childLocations    Location[]              @relation("LocationHierarchy")
+  currentObjects    Object[]                @relation("ObjectPrimaryLocation")
+  historyEntries    ObjectLocationHistory[]
+
+  @@map("locations")
+}
+
+model ObjectLocationHistory {
+  id               String   @id @default(uuid()) @db.Uuid
+  objectId         String   @map("object_id") @db.Uuid
+  locationId       String   @map("location_id") @db.Uuid
+  enteredAt        DateTime @default(now()) @map("entered_at") @db.Timestamptz
+  leftAt           DateTime? @map("left_at") @db.Timestamptz
+  reason           String?
+  notes            String?
+  recordedByUserId String?  @map("recorded_by_user_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  object           Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  location         Location @relation(fields: [locationId], references: [id])
+  recordedBy       User?    @relation(fields: [recordedByUserId], references: [id])
+
+  @@index([objectId, leftAt])
+  @@index([locationId])
+  @@map("object_location_history")
+}
+
+model WorkflowEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  objectId        String   @map("object_id") @db.Uuid
+  eventType       String   @map("event_type")
+  fromState       String?  @map("from_state")
+  toState         String?  @map("to_state")
+  notes           String?
+  eventAt         DateTime @default(now()) @map("event_at") @db.Timestamptz
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  object          Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  createdBy       User?    @relation(fields: [createdByUserId], references: [id])
+
+  @@index([objectId, eventAt])
+  @@index([eventType])
+  @@map("workflow_events")
+}
+
+model MediaAsset {
+  id                  String       @id @default(uuid()) @db.Uuid
+  objectId            String?      @map("object_id") @db.Uuid
+  storageProvider     String       @default("supabase") @map("storage_provider")
+  storagePath         String       @map("storage_path")
+  kind                String
+  mimeType            String?      @map("mime_type")
+  originalFilename    String?      @map("original_filename")
+  width               Int?
+  height              Int?
+  durationSeconds     Decimal?     @map("duration_seconds") @db.Decimal(10, 2)
+  fileSizeBytes       BigInt?      @map("file_size_bytes")
+  checksumSha256      String?      @map("checksum_sha256")
+  caption             String?
+  altText             String?      @map("alt_text")
+  visibility          String       @default("internal")
+  isPrimary           Boolean      @default(false) @map("is_primary")
+  sortOrder           Int          @default(0) @map("sort_order")
+  shotAt              DateTime?    @map("shot_at") @db.Timestamptz
+  shotByUserId        String?      @map("shot_by_user_id") @db.Uuid
+  derivativeOfAssetId String?      @map("derivative_of_asset_id") @db.Uuid
+  createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+  object              Object?      @relation("ObjectMediaAssets", fields: [objectId], references: [id], onDelete: SetNull)
+  primaryForObject    Object?      @relation("ObjectPrimaryImage")
+  shotBy              User?        @relation(fields: [shotByUserId], references: [id])
+  derivativeOf        MediaAsset?  @relation("MediaAssetDerivative", fields: [derivativeOfAssetId], references: [id])
+  derivatives         MediaAsset[] @relation("MediaAssetDerivative")
+  inventoryPrimaryFor InventoryItem[] @relation("InventoryPrimaryImage")
+
+  @@index([objectId])
+  @@index([visibility])
+  @@map("media_assets")
+}
+
+model ResearchEntry {
+  id              String   @id @default(uuid()) @db.Uuid
+  objectId        String   @map("object_id") @db.Uuid
+  sourceType      String?  @map("source_type")
+  sourceUrl       String?  @map("source_url")
+  citation        String?
+  summary         String?
+  confidence      String?
+  notes           String?
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  object          Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  createdBy       User?    @relation(fields: [createdByUserId], references: [id])
+
+  @@index([objectId])
+  @@map("research_entries")
+}
+
+model Collection {
+  id              String             @id @default(uuid()) @db.Uuid
+  slug            String             @unique
+  name            String
+  description     String?
+  visibility      String             @default("internal")
+  isFeatured      Boolean            @default(false) @map("is_featured")
+  startsAt        DateTime?          @map("starts_at") @db.Timestamptz
+  endsAt          DateTime?          @map("ends_at") @db.Timestamptz
+  createdByUserId String?            @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+  createdBy       User?              @relation(fields: [createdByUserId], references: [id])
+  objectLinks     CollectionObject[]
+
+  @@map("collections")
+}
+
+model CollectionObject {
+  collectionId String     @map("collection_id") @db.Uuid
+  objectId     String     @map("object_id") @db.Uuid
+  sortOrder    Int        @default(0) @map("sort_order")
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  object       Object     @relation(fields: [objectId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, objectId])
+  @@map("collection_objects")
+}
+
+model SalesRecord {
+  id             String   @id @default(uuid()) @db.Uuid
+  objectId       String   @map("object_id") @db.Uuid
+  channel        String
+  squareSaleId   String?  @map("square_sale_id")
+  squareOrderId  String?  @map("square_order_id")
+  soldAt         DateTime @map("sold_at") @db.Timestamptz
+  salePriceCents Int      @map("sale_price_cents")
+  currency       String   @default("USD")
+  feesCents      Int?     @map("fees_cents")
+  taxCents       Int?     @map("tax_cents")
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  object         Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
+
+  @@index([objectId, soldAt])
+  @@map("sales_records")
+}
+
+model PublishProfile {
+  id                String   @id @default(uuid()) @db.Uuid
+  objectId          String   @unique @map("object_id") @db.Uuid
+  isPublic          Boolean  @default(false) @map("is_public")
+  isFeaturedHome    Boolean  @default(false) @map("is_featured_home")
+  isFeaturedGallery Boolean  @default(false) @map("is_featured_gallery")
+  publicTitle       String?  @map("public_title")
+  publicExcerpt     String?  @map("public_excerpt")
+  publicDescription String?  @map("public_description")
+  publicPriceMode   String   @default("hidden") @map("public_price_mode")
+  publicStatusLabel String?  @map("public_status_label")
+  seoTitle          String?  @map("seo_title")
+  seoDescription    String?  @map("seo_description")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  object            Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
+
+  @@index([isPublic])
+  @@map("publish_profiles")
+}
+
+model InventoryItem {
+  id                 String      @id @default(uuid()) @db.Uuid
+  objectId           String?     @map("object_id") @db.Uuid
+  slug               String?     @unique
+  title              String
+  inventoryType      String      @default("merch") @map("inventory_type")
+  sku                String?
+  status             String      @default("active")
+  quantityOnHand     Int         @default(0) @map("quantity_on_hand")
+  quantityReserved   Int         @default(0) @map("quantity_reserved")
+  reorderThreshold   Int?        @map("reorder_threshold")
+  priceCents         Int?        @map("price_cents")
+  currency           String      @default("USD")
+  squareItemId       String?     @map("square_item_id")
+  squareVariationId  String?     @map("square_variation_id")
+  primaryImageId     String?     @map("primary_image_id") @db.Uuid
+  createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  object             Object?     @relation(fields: [objectId], references: [id], onDelete: SetNull)
+  primaryImage       MediaAsset? @relation("InventoryPrimaryImage", fields: [primaryImageId], references: [id])
+  variants           InventoryVariant[]
+
+  @@index([status])
+  @@map("inventory_items")
+}
+
+model InventoryVariant {
+  id               String        @id @default(uuid()) @db.Uuid
+  inventoryItemId  String        @map("inventory_item_id") @db.Uuid
+  sku              String?
+  variantName      String        @map("variant_name")
+  optionValues     Json?         @map("option_values")
+  quantityOnHand   Int           @default(0) @map("quantity_on_hand")
+  quantityReserved Int           @default(0) @map("quantity_reserved")
+  priceCents       Int?          @map("price_cents")
+  currency         String        @default("USD")
+  squareVariationId String?      @map("square_variation_id")
+  isActive         Boolean       @default(true) @map("is_active")
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  inventoryItem    InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@index([inventoryItemId])
+  @@map("inventory_variants")
+}
+
+model ObjectRelationship {
+  id               String   @id @default(uuid()) @db.Uuid
+  sourceObjectId   String   @map("source_object_id") @db.Uuid
+  targetObjectId   String   @map("target_object_id") @db.Uuid
+  relationshipType String   @map("relationship_type")
+  notes            String?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  sourceObject     Object   @relation("ObjectRelationshipSource", fields: [sourceObjectId], references: [id], onDelete: Cascade)
+  targetObject     Object   @relation("ObjectRelationshipTarget", fields: [targetObjectId], references: [id], onDelete: Cascade)
+
+  @@index([sourceObjectId])
+  @@index([targetObjectId])
+  @@map("object_relationships")
+}
+
+model ObjectValuation {
+  id              String   @id @default(uuid()) @db.Uuid
+  objectId        String   @map("object_id") @db.Uuid
+  valuationType   String   @map("valuation_type")
+  amountCents     Int      @map("amount_cents")
+  currency        String   @default("USD")
+  notes           String?
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  object          Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  createdBy       User?    @relation(fields: [createdByUserId], references: [id])
+
+  @@index([objectId])
+  @@map("object_valuations")
+}

@@ -1,0 +1,33 @@
+{
+  "name": "tiger-dust-v2",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tiger Dust v2 foundation scaffold: public site + internal ops app.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.2",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.49.1",
+    "next": "^15.5.14",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "prisma": "^6.19.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}
