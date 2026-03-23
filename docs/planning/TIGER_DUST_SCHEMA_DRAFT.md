@@ -1,4 +1,6 @@
 # Tiger Dust v2 Schema Draft
+Last updated: 2026-03-22
+Notes: Schema is implemented (17 models, live on Supabase). This document remains accurate as a design reference. See section 11 for additions not yet implemented: Source/vendor model and ObjectRelation type clarification.
 
 ## Purpose
 
@@ -703,12 +705,7 @@ That separation will save pain.
 
 # 9. Next Steps
 
-After approving this schema draft, the next documents should be:
-
-1. **Prisma schema draft** or **SQL DDL draft**
-2. **Screen-to-table mapping**
-3. **MVP API contract**
-4. **Seed data plan** for object types, locations, and routes
+Schema is implemented. The active additions not yet built are in section 11 below.
 
 ---
 
@@ -723,3 +720,62 @@ This schema is designed to support a business that is:
 - high-context rather than mass-inventory optimized
 
 That is why it should fit Tiger Dust better than a generic ecommerce schema.
+
+---
+
+# 11. Planned Additions (not yet implemented)
+
+## 11.1 `sources` — Vendor / Acquisition Source Model
+
+Track where objects come from. Especially useful for repeat acquisition sources.
+
+### Rationale
+- Repeat vendors (estate sale contacts, consigners, suppliers) currently have no first-class record
+- `objects.acquisition_source` is a plain text field, which doesn't support lookup or grouping
+- A simple Source entity solves this without over-engineering
+
+### Proposed fields
+- `id` UUID PK
+- `slug` TEXT UNIQUE NOT NULL
+- `name` TEXT NOT NULL
+- `source_type` TEXT NOT NULL — suggested values: estate-sale, vendor, consignment, found, personal, gift, other
+- `contact_name` TEXT NULL
+- `contact_email` TEXT NULL
+- `contact_phone` TEXT NULL
+- `notes` TEXT NULL
+- `is_active` BOOLEAN NOT NULL DEFAULT true
+- `created_at` TIMESTAMPTZ NOT NULL DEFAULT now()
+- `updated_at` TIMESTAMPTZ NOT NULL DEFAULT now()
+
+### Change to `objects`
+- Replace `acquisition_source` TEXT with `source_id` UUID NULL FK -> sources.id
+- Keep `acquisition_type` TEXT as-is
+
+### Notes
+- Keep it simple. This is a lookup table, not a CRM.
+- Source records should be creatable inline from the intake form without navigating away.
+
+---
+
+## 11.2 `object_relations` — Clarification of Intended Types
+
+The schema already has `object_relationships` (also referenced as `object_relations`).
+This section documents the intended relationship vocabulary for implementation.
+
+### Confirmed relationship types
+- `component_of` — this object is a physical component of another (e.g., shade is component_of lamp base)
+- `derived_from` — this object was made from or inspired by another (e.g., jewelry piece derived_from a found element)
+- `paired_with` — these two objects are a matched pair and are typically sold/displayed together
+- `part_of_set` — member of a multi-piece set (e.g., set of 4 chairs)
+- `companion_piece` — thematically related but not physically matched
+
+### Directionality notes
+- `component_of` and `derived_from` are directional: source_object IS component/derived, target_object IS the parent
+- `paired_with` and `part_of_set` are symmetric: either direction means the same thing
+- The app should display both directions when rendering relationships on the detail page
+
+### UI plan (post-media milestone)
+- Object detail page shows a "Related Objects" section
+- Lists related objects by type with link to their detail page
+- Add/remove relationship via a simple picker
+- Do not build until media milestone is complete — this is lower priority than images

@@ -1,4 +1,5 @@
 # Tiger Dust v2 Spec Pack
+Last reviewed: 2026-03-22 — content is accurate. Stack, principles, and product goals are unchanged.
 
 ## Purpose
 

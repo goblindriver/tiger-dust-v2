@@ -1,4 +1,5 @@
 # Tiger Dust v2 Screen-to-Table Mapping
+Last reviewed: 2026-03-22 — content is accurate as a design reference. Built screens: Object List, Object Detail (with edit, workflow events, tags), Intake form. All other screens remain unbuilt.
 
 ## Purpose
 

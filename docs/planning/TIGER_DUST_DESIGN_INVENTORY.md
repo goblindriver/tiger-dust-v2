@@ -1,4 +1,5 @@
 # Tiger Dust Design Inventory
+Last reviewed: 2026-03-22 — content is accurate. Asset gaps and missing imagery categories remain unresolved. Brand kit extraction (Step 1) and photo brief (TD-049) not yet started.
 
 ## Purpose
 

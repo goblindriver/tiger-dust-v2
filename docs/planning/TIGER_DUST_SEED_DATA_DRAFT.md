@@ -1,4 +1,5 @@
 # Tiger Dust v2 Seed Data Draft
+Last reviewed: 2026-03-22 — content is accurate. All seed data in this document has been implemented: 26 object types, 18 locations, 27 tags, 8 collections, 3 users. Workflow event types and controlled values are seeded and live.
 
 ## Purpose
 

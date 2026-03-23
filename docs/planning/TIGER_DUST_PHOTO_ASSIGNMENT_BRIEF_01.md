@@ -1,4 +1,5 @@
 # Tiger Dust v2 Photo Assignment Brief 01
+Last reviewed: 2026-03-22 — content is accurate. No photography from this brief has been shot yet. This assignment is still pending (TD-049).
 
 ## Purpose
 

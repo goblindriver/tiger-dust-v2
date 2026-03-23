@@ -1,36 +1,89 @@
 # STATUS
+Last updated: 2026-03-22
 
-## Object workflow progress
+---
 
-Implemented the next smallest real object workflow step only:
+## What is built
 
-- added core-field editing to `/app/objects/[slug]`
-  - the detail page now includes a small edit form for title, object type, lifecycle status, route/disposition, location, asking price, and condition notes
-  - the screen keeps demo/fallback behavior explicit instead of pretending edits persist when DB/env is unavailable
-- added a dedicated detail-page server action in `src/app/app/objects/[slug]/actions.ts`
-  - validates form input with Zod
-  - updates the `objects` row when the DB is available
-  - resolves object type + location by seeded slugs so the form stays grounded in reference data
-  - revalidates the object list and current detail route after save
-  - fails clearly when `DATABASE_URL` or required seeded reference rows are missing
-- made location edits write history, not just display changes
-  - when location changes, the action closes any open `object_location_history` row by setting `left_at`
-  - then it creates a new current `object_location_history` entry in the same transaction
-  - unchanged locations do not create duplicate history noise
-- added `src/app/app/objects/[slug]/object-detail-edit-form.tsx`
-  - uses `useActionState` for inline save feedback and pending state
-  - keeps the edit slice tightly scoped to the seven requested fields only
-- extended `src/features/objects/data.ts`
-  - object detail records now carry object-type and location slugs for form defaults in both DB and demo modes
-  - demo objects were updated so the detail edit form stays locally runnable without infra
-- refreshed the detail-page copy in `src/app/app/objects/[slug]/page.tsx`
-  - replaced the old “next editable blocks” placeholder with the real current edit slice and clearly marked what remains out of scope
+### Infrastructure
+- Next.js 15 + TypeScript + Prisma + Supabase stack
+- Netlify deployment with auto-deploy from GitHub
+- DNS configured: tigerdust.party
+- Auth middleware protecting all `/app/*` routes
+- Real sign-in page (Supabase email/password auth)
+- Environment variable strategy documented and working
 
-## Verification
+### Database
+- Full Prisma schema — 17 models — live on Supabase
+- Initial migrations applied
+- Seed data: 26 object types, 18 locations, 27 tags, 8 collections, 3 users
+- Dynamic reference data fetched from DB with hardcoded fallback for local/offline dev
+
+### Internal app — Unique Object Workflow
+- Object list page with filters (type, status, route, location) and pagination
+- Object intake form: creates object + workflow event + location history + tags in one transaction
+- Object detail page with edit form for 7 core fields (title, type, status, route, location, price, condition notes)
+- Location changes write history (closes open row, opens new row) — not just display changes
+- Workflow event logging UI on object detail page
+- Tag management UI on object detail page (add/remove tags)
+
+### Public site
+- Placeholder pages exist at `/`, `/about`, `/visit` — not real content yet
+
+---
+
+## What is not built yet
+
+### Biggest blockers for public site launch
+- **No media upload pipeline** — `media_assets` table exists in schema, no upload UI or storage integration
+- **Public pages are placeholders** — Home, About, Visit/Contact have no real content or structured data
+
+### Internal features not yet started
+- Merch / inventory workflow (Milestone 3)
+- Publishing controls / publish profiles UI (Milestone 4)
+- Collections manager UI
+- Media desk
+- Location browser screen
+- Processing board / kanban view
+- Research desk
+- Sales reconciliation
+
+### Integrations not started
+- Square integration
+- QR label printing (Brother printer → /object/{id} links)
+
+### Infrastructure gaps
+- No media upload to Supabase Storage (or alternative)
+- No offsite backup strategy documented or implemented
+- Mobile UX not tested or optimized for phone use in lamp lab
+
+### Not yet designed
+- ObjectRelation UI (schema has the join table, UI doesn't use it)
+- Source/vendor model (where objects come from — repeat acquisition sources)
+- Provenance-to-content pipeline (research notes + photos → shareable content)
+
+---
+
+## Known issues
+
+- No missing-data indicators on object list (no image, no price, no route markers)
+- Object detail doesn't yet show location history inline
+- No pagination on workflow event log
+
+---
+
+## Current priorities
+
+1. **Media upload** — biggest gap before any real public publishing can happen
+2. **Mobile UX** — intake and status updates need to work on a phone; test and fix
+3. **QR labels** — Brother printer + QR codes linking to /object/{id}; solve "where is everything" during physical rebuild work
+4. **Public pages** — replace placeholders with real content and structured data
+5. **Offsite backup** — document and implement Supabase DB backup + media backup plan
+6. **Merch workflow** — when object catalog is stable enough
+
+---
+
+## Verification (last clean build)
 
 - `npm run typecheck` ✅
 - `npm run build` ✅
-
-## Next small step
-
-Add explicit workflow-event logging from the object detail page so repairs, photography, research, and routing milestones can be recorded as discrete events without broadening into media, research CRUD, or larger workflow tooling.
