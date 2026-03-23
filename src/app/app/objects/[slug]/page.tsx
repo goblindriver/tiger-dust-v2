@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { SiteShell } from '@/components/site-shell';
 import { getObjectBySlug, getObjectReferenceOptions, getObjectWorkflowSummary } from '@/features/objects/data';
 import { ObjectDetailEditForm } from './object-detail-edit-form';
+import { WorkflowEventForm } from './workflow-event-form';
 
 function money(value: number | null) {
   if (value === null) return '—';
@@ -143,6 +144,11 @@ export default async function ObjectDetailPage({ params }: { params: Promise<{ s
             locationOptions={locationOptions}
             lifecycleStatusOptions={lifecycleStatusOptions}
             routeIntentOptions={routeIntentOptions}
+          />
+
+          <WorkflowEventForm
+            objectId={objectRecord.id}
+            lifecycleStatus={objectRecord.lifecycleStatus}
           />
 
           <article className="card">

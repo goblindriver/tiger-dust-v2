@@ -173,3 +173,91 @@ export async function updateObjectAction(
 }
 
 export { initialState as updateObjectInitialState };
+
+export type LogWorkflowEventActionState = {
+  status: 'idle' | 'success' | 'error';
+  message?: string;
+};
+
+const logWorkflowEventSchema = z.object({
+  objectId: z.string().trim().min(1, 'Object id is required.'),
+  eventType: z.string().trim().min(1, 'Event type is required.'),
+  fromState: z.string().trim().optional(),
+  notes: z.string().trim().optional(),
+});
+
+const logWorkflowEventInitialStateValue: LogWorkflowEventActionState = { status: 'idle' };
+
+export async function logWorkflowEventAction(
+  _previousState: LogWorkflowEventActionState,
+  formData: FormData,
+): Promise<LogWorkflowEventActionState> {
+  if (!isDatabaseConfigured()) {
+    return {
+      status: 'error',
+      message: 'DATABASE_URL is missing, so workflow events stay demo-safe for now. Configure the DB to persist events.',
+    };
+  }
+
+  const parsed = logWorkflowEventSchema.safeParse({
+    objectId: formData.get('objectId'),
+    eventType: formData.get('eventType'),
+    fromState: formData.get('fromState'),
+    notes: formData.get('notes'),
+  });
+
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: parsed.error.issues[0]?.message ?? 'The event form is incomplete.',
+    };
+  }
+
+  try {
+    const db = getDb();
+    const user = await getCurrentUser();
+    const actorUserId = user?.source === 'database' ? user.id : undefined;
+
+    const existingObject = await db.object.findUnique({
+      where: { id: parsed.data.objectId },
+      select: { id: true, slug: true, lifecycleStatus: true },
+    });
+
+    if (!existingObject) {
+      return {
+        status: 'error',
+        message: 'That object record no longer exists.',
+      };
+    }
+
+    const fromState = parsed.data.fromState?.length ? parsed.data.fromState : existingObject.lifecycleStatus;
+
+    await db.workflowEvent.create({
+      data: {
+        objectId: existingObject.id,
+        eventType: parsed.data.eventType,
+        fromState,
+        notes: parsed.data.notes?.length ? parsed.data.notes : null,
+        createdByUserId: actorUserId,
+      },
+    });
+
+    const detailPath = `/app/objects/${existingObject.slug}`;
+    revalidatePath('/app/objects');
+    revalidatePath(detailPath);
+
+    return {
+      status: 'success',
+      message: `Event "${parsed.data.eventType}" logged.`,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Event logging failed.';
+
+    return {
+      status: 'error',
+      message,
+    };
+  }
+}
+
+export { logWorkflowEventInitialStateValue as logWorkflowEventInitialState };
