@@ -46,10 +46,10 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
           <div className="pub-footer-col">
             {/* Update with real handles when confirmed */}
             <div className="pub-footer-social">
-              <a href="https://www.instagram.com/tigerdusttampa" className="pub-footer-col">
+              <a href="https://www.instagram.com/tigerdustheights" className="pub-footer-col">
                 Instagram
               </a>
-              <a href="https://www.facebook.com/tigerdusttampa" className="pub-footer-col">
+              <a href="https://www.facebook.com/p/Tiger-Dust-Heights-100077028941213/" className="pub-footer-col">
                 Facebook
               </a>
             </div>

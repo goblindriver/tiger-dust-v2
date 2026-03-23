@@ -59,7 +59,7 @@ export default function VisitPage() {
               {/* Update handles when confirmed */}
               <div className="pub-social-row">
                 <a
-                  href="https://www.instagram.com/tigerdusttampa"
+                  href="https://www.instagram.com/tigerdustheights"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="pub-social-link"
@@ -67,7 +67,7 @@ export default function VisitPage() {
                   Instagram
                 </a>
                 <a
-                  href="https://www.facebook.com/tigerdusttampa"
+                  href="https://www.facebook.com/p/Tiger-Dust-Heights-100077028941213/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="pub-social-link"

@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { PublicShell } from '@/components/public-shell';
 
@@ -38,9 +39,17 @@ export default function HomePage() {
   return (
     <PublicShell>
       <section className="pub-hero">
+        <Image
+          src="/brand/logo-full-color.svg"
+          alt="Tiger Dust"
+          width={280}
+          height={300}
+          className="pub-hero-logo"
+          priority
+        />
         <p className="pub-eyebrow">Seminole Heights · Tampa, FL</p>
         <h1 className="pub-hero-title">
-          The curiosity shop Seminole Heights deserves.
+          At Tiger Dust, it&rsquo;s always Halloween.
         </h1>
         <p className="pub-hero-sub">
           Tiger Dust carries curated objects, handmade jewelry, restored lamps,

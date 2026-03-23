@@ -84,7 +84,7 @@ export default function GalleryPage() {
         <div className="pub-cta-row">
           {/* Update handle when confirmed */}
           <a
-            href="https://www.instagram.com/tigerdusttampa"
+            href="https://www.instagram.com/tigerdustheights"
             target="_blank"
             rel="noopener noreferrer"
             className="pub-cta-primary"
