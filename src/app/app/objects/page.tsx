@@ -22,8 +22,10 @@ export default async function ObjectsPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { source, items } = await listObjects();
   const resolvedSearchParams = searchParams ? await searchParams : {};
+  const rawPage = resolvedSearchParams.page;
+  const page = Math.max(1, parseInt(String(Array.isArray(rawPage) ? rawPage[0] : rawPage ?? '1'), 10) || 1);
+  const { source, items, total, pageSize } = await listObjects({ page });
   const filters = getObjectListFilters(resolvedSearchParams);
   const filteredItems = filterObjects(items, filters);
   const filterOptions = getObjectListFilterOptions(items);
@@ -37,6 +39,19 @@ export default async function ObjectsPage({
   };
 
   const activeFilters = [filters.q, filters.status, filters.route, filters.location, filters.readiness].filter(Boolean).length;
+  const hasPrevPage = page > 1;
+  const hasNextPage = page * pageSize < total;
+
+  function buildPageLink(targetPage: number): `/app/objects?${string}` {
+    const params = new URLSearchParams();
+    if (filters.q) params.set('q', filters.q);
+    if (filters.status) params.set('status', filters.status);
+    if (filters.route) params.set('route', filters.route);
+    if (filters.location) params.set('location', filters.location);
+    if (filters.readiness) params.set('readiness', filters.readiness);
+    params.set('page', String(targetPage));
+    return `/app/objects?${params.toString()}` as `/app/objects?${string}`;
+  }
 
   return (
     <SiteShell
@@ -201,6 +216,22 @@ export default async function ObjectsPage({
           <div className="empty-state">
             <h3>No objects match this view.</h3>
             <p className="muted">Try clearing a filter or broadening the search terms.</p>
+          </div>
+        ) : null}
+
+        {(hasPrevPage || hasNextPage) ? (
+          <div className="pagination">
+            {hasPrevPage ? (
+              <Link href={buildPageLink(page - 1)} className="button button-secondary">
+                Previous
+              </Link>
+            ) : null}
+            <span className="muted">Page {page} · {total} total</span>
+            {hasNextPage ? (
+              <Link href={buildPageLink(page + 1)} className="button button-secondary">
+                Next
+              </Link>
+            ) : null}
           </div>
         ) : null}
       </section>

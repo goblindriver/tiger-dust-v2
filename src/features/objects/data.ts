@@ -240,28 +240,81 @@ const locationOptions = [
   'liquidation-holding',
 ];
 
-function formatDbObject(record: any): ObjectDetail {
-  const tagNames = (record.tagLinks ?? []).map((link: any) => link.tag.name);
+type FormattableObjectRecord = {
+  id: string;
+  slug: string | null;
+  title: string;
+  subtitle: string | null;
+  objectType: { name: string; slug: string } | null;
+  primaryLocation: { name: string; slug: string } | null;
+  primaryImage: { storagePath: string } | null;
+  tagLinks: Array<{ tag: { name: string } }>;
+  researchEntries: Array<{
+    id: string;
+    citation?: string | null;
+    summary?: string | null;
+    sourceUrl?: string | null;
+    confidence?: string | null;
+    createdAt?: Date;
+  }>;
+  workflowEvents?: Array<{
+    id: string;
+    eventType: string;
+    notes: string | null;
+    eventAt: Date;
+  }>;
+  locationHistory?: Array<{
+    id: string;
+    location: { name: string };
+    reason: string | null;
+    notes: string | null;
+    enteredAt: Date;
+  }>;
+  mediaAssets?: Array<{
+    id: string;
+    kind: string;
+    storagePath: string;
+    caption: string | null;
+    isPrimary: boolean;
+  }>;
+  lifecycleStatus: string;
+  routeIntent: string;
+  visibility: string;
+  intakeStage: string;
+  askingPriceCents: number | null;
+  costBasisCents: number | null;
+  descriptionShort: string | null;
+  descriptionLong: string | null;
+  materials: string | null;
+  conditionNotes: string | null;
+  acquisitionType: string | null;
+  acquisitionSource: string | null;
+  dateAcquired: Date | null;
+  updatedAt: Date;
+};
+
+function formatDbObject(record: FormattableObjectRecord): ObjectDetail {
+  const tagNames = (record.tagLinks ?? []).map((link) => link.tag.name);
   const timeline = [
-    ...(record.workflowEvents ?? []).map((event: any) => ({
+    ...(record.workflowEvents ?? []).map((event) => ({
       id: event.id,
       label: event.eventType.replaceAll('_', ' '),
       notes: event.notes ?? null,
       at: event.eventAt.toISOString(),
       kind: 'workflow' as const,
     })),
-    ...(record.locationHistory ?? []).map((entry: any) => ({
+    ...(record.locationHistory ?? []).map((entry) => ({
       id: entry.id,
       label: `Moved to ${entry.location.name}`,
       notes: entry.reason ?? entry.notes ?? null,
       at: entry.enteredAt.toISOString(),
       kind: 'location' as const,
     })),
-    ...(record.researchEntries ?? []).map((entry: any) => ({
+    ...(record.researchEntries ?? []).map((entry) => ({
       id: entry.id,
       label: 'Research added',
       notes: entry.summary ?? entry.citation ?? null,
-      at: entry.createdAt.toISOString(),
+      at: entry.createdAt?.toISOString() ?? '',
       kind: 'research' as const,
     })),
   ].sort((a, b) => (a.at < b.at ? 1 : -1));
@@ -294,14 +347,14 @@ function formatDbObject(record: any): ObjectDetail {
     dateAcquired: record.dateAcquired ? record.dateAcquired.toISOString() : null,
     notesInternal: null,
     timeline,
-    media: (record.mediaAssets ?? []).map((asset: any) => ({
+    media: (record.mediaAssets ?? []).map((asset) => ({
       id: asset.id,
       kind: asset.kind,
       storagePath: asset.storagePath,
       caption: asset.caption ?? null,
       isPrimary: asset.isPrimary,
     })),
-    research: (record.researchEntries ?? []).map((entry: any) => ({
+    research: (record.researchEntries ?? []).map((entry) => ({
       id: entry.id,
       citation: entry.citation ?? null,
       summary: entry.summary ?? null,
@@ -311,31 +364,52 @@ function formatDbObject(record: any): ObjectDetail {
   };
 }
 
-export async function listObjects(): Promise<{ source: 'database' | 'demo'; items: ObjectListItem[] }> {
+export type ObjectListResult = {
+  source: 'database' | 'demo';
+  items: ObjectListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export async function listObjects(params?: { page?: number; pageSize?: number }): Promise<ObjectListResult> {
+  const page = Math.max(1, params?.page ?? 1);
+  const pageSize = Math.max(1, params?.pageSize ?? 50);
+
   if (!isDatabaseConfigured()) {
-    return { source: 'demo', items: demoObjects };
+    return { source: 'demo', items: demoObjects, total: demoObjects.length, page: 1, pageSize };
   }
 
   try {
     const db = getDb();
-    const objects = await db.object.findMany({
-      include: {
-        objectType: true,
-        primaryLocation: true,
-        primaryImage: true,
-        tagLinks: { include: { tag: true } },
-        researchEntries: { select: { id: true } },
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: 50,
-    });
+    const skip = (page - 1) * pageSize;
+
+    const [objects, total] = await Promise.all([
+      db.object.findMany({
+        include: {
+          objectType: true,
+          primaryLocation: true,
+          primaryImage: true,
+          tagLinks: { include: { tag: true } },
+          researchEntries: { select: { id: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        skip,
+        take: pageSize,
+      }),
+      db.object.count(),
+    ]);
 
     return {
       source: 'database',
-      items: objects.map((record: any) => formatDbObject(record)),
+      items: objects.map((record) => formatDbObject(record)),
+      total,
+      page,
+      pageSize,
     };
-  } catch {
-    return { source: 'demo', items: demoObjects };
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') console.error('[tiger-dust] DB fetch failed, using demo fallback:', error);
+    return { source: 'demo', items: demoObjects, total: demoObjects.length, page: 1, pageSize };
   }
 }
 
@@ -363,7 +437,8 @@ export async function getObjectBySlug(slug: string): Promise<{ source: 'database
     });
 
     return { source: 'database', item: record ? formatDbObject(record) : null };
-  } catch {
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') console.error('[tiger-dust] DB fetch failed, using demo fallback:', error);
     return { source: 'demo', item: demoObjects.find((item) => item.slug === slug) ?? null };
   }
 }

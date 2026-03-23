@@ -1,4 +1,8 @@
+'use client';
+
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { createBrowserClient } from '@supabase/ssr';
 import { publicNav, internalNav } from '@/lib/navigation';
 
 export function SiteShell({
@@ -10,6 +14,23 @@ export function SiteShell({
   description: string;
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const isInternalRoute = pathname.startsWith('/app');
+
+  async function handleSignOut() {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (url && key) {
+      const supabase = createBrowserClient(url, key);
+      await supabase.auth.signOut();
+    }
+
+    router.push('/app/auth');
+    router.refresh();
+  }
+
   return (
     <main>
       <div className="hero">
@@ -32,6 +53,11 @@ export function SiteShell({
               {item.label}
             </Link>
           ))}
+          {isInternalRoute && (
+            <button className="button" onClick={handleSignOut}>
+              Sign out
+            </button>
+          )}
         </div>
       </section>
 

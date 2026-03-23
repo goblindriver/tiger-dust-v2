@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { isRedirectError } from 'next/dist/client/components/redirect-error';
 import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth/session';
 import { getDb, isDatabaseConfigured } from '@/lib/db';
@@ -225,7 +226,7 @@ export async function createObjectAction(
     redirect(`/app/objects/${redirectSlug}`);
   } catch (error) {
     // Next.js redirect() throws a special error — rethrow it so it works correctly
-    if (error instanceof Error && error.message === 'NEXT_REDIRECT') throw error;
+    if (isRedirectError(error)) throw error;
     const message = error instanceof Error ? error.message : 'Object create failed.';
 
     return {
