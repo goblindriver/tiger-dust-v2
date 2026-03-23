@@ -1,11 +1,30 @@
 import Link from 'next/link';
 import { SiteShell } from '@/components/site-shell';
 import { getAuthStatus, getObjectIntakeDefaults, getObjectReferenceOptions } from '@/features/objects/data';
+import { getDb, isDatabaseConfigured } from '@/lib/db';
 import { ObjectIntakeForm } from './object-intake-form';
 
-export default function NewObjectPage() {
+export default async function NewObjectPage() {
   const defaults = getObjectIntakeDefaults();
   const auth = getAuthStatus();
+
+  let dbObjectTypes: string[] | null = null;
+  let dbLocations: string[] | null = null;
+
+  if (isDatabaseConfigured()) {
+    try {
+      const db = getDb();
+      const [objectTypes, locations] = await Promise.all([
+        db.objectType.findMany({ where: { isActive: true }, select: { slug: true }, orderBy: { sortOrder: 'asc' } }),
+        db.location.findMany({ where: { isActive: true }, select: { slug: true }, orderBy: { sortOrder: 'asc' } }),
+      ]);
+      dbObjectTypes = objectTypes.map((t: { slug: string }) => t.slug);
+      dbLocations = locations.map((l: { slug: string }) => l.slug);
+    } catch {
+      // fall through to hardcoded defaults
+    }
+  }
+
   const {
     objectTypeOptions,
     locationOptions,
@@ -13,7 +32,7 @@ export default function NewObjectPage() {
     routeIntentOptions,
     intakeStageOptions,
     visibilityOptions,
-  } = getObjectReferenceOptions();
+  } = getObjectReferenceOptions({ dbObjectTypes, dbLocations });
 
   return (
     <SiteShell

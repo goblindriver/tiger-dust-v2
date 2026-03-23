@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { SiteShell } from '@/components/site-shell';
 import { getObjectBySlug, getObjectReferenceOptions, getObjectWorkflowSummary } from '@/features/objects/data';
+import { getDb, isDatabaseConfigured } from '@/lib/db';
 import { ObjectDetailEditForm } from './object-detail-edit-form';
+import { TagEditor } from './tag-editor';
 import { WorkflowEventForm } from './workflow-event-form';
 
 function money(value: number | null) {
@@ -44,7 +46,26 @@ export default async function ObjectDetailPage({ params }: { params: Promise<{ s
 
   const objectRecord = item as NonNullable<typeof item>;
   const workflow = getObjectWorkflowSummary(objectRecord);
-  const { objectTypeOptions, locationOptions, lifecycleStatusOptions, routeIntentOptions } = getObjectReferenceOptions();
+
+  let dbObjectTypes: string[] | null = null;
+  let dbLocations: string[] | null = null;
+
+  if (isDatabaseConfigured()) {
+    try {
+      const db = getDb();
+      const [objectTypes, locations] = await Promise.all([
+        db.objectType.findMany({ where: { isActive: true }, select: { slug: true }, orderBy: { sortOrder: 'asc' } }),
+        db.location.findMany({ where: { isActive: true }, select: { slug: true }, orderBy: { sortOrder: 'asc' } }),
+      ]);
+      dbObjectTypes = objectTypes.map((t: { slug: string }) => t.slug);
+      dbLocations = locations.map((l: { slug: string }) => l.slug);
+    } catch {
+      // fall through to hardcoded defaults
+    }
+  }
+
+  const { objectTypeOptions, locationOptions, lifecycleStatusOptions, routeIntentOptions } =
+    getObjectReferenceOptions({ dbObjectTypes, dbLocations });
 
   return (
     <SiteShell
@@ -149,6 +170,11 @@ export default async function ObjectDetailPage({ params }: { params: Promise<{ s
           <WorkflowEventForm
             objectId={objectRecord.id}
             lifecycleStatus={objectRecord.lifecycleStatus}
+          />
+
+          <TagEditor
+            objectId={objectRecord.id}
+            initialTags={objectRecord.tagNames}
           />
 
           <article className="card">

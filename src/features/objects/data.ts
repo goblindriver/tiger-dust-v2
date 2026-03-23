@@ -387,10 +387,13 @@ export function getObjectIntakeDefaults(): ObjectIntakeDefaults {
   };
 }
 
-export function getObjectReferenceOptions() {
+export function getObjectReferenceOptions(params?: {
+  dbObjectTypes?: string[] | null;
+  dbLocations?: string[] | null;
+}) {
   return {
-    objectTypeOptions,
-    locationOptions,
+    objectTypeOptions: params?.dbObjectTypes ?? objectTypeOptions,
+    locationOptions: params?.dbLocations ?? locationOptions,
     lifecycleStatusOptions: ['acquired', 'intake', 'processing', 'ready', 'published', 'sold', 'archived', 'inactive'],
     routeIntentOptions: ['undecided', 'storefront', 'website-feature', 'archive', 'liquidation', 'hold', 'consignment', 'event'],
     intakeStageOptions: ['draft', 'minimal', 'enriched', 'review-ready', 'complete'],

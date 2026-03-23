@@ -261,3 +261,91 @@ export async function logWorkflowEventAction(
 }
 
 export { logWorkflowEventInitialStateValue as logWorkflowEventInitialState };
+
+export type UpdateObjectTagsActionState = {
+  status: 'idle' | 'success' | 'error';
+  message?: string;
+};
+
+const updateObjectTagsSchema = z.object({
+  objectId: z.string().trim().min(1, 'Object id is required.'),
+  tags: z.string().trim(),
+});
+
+const updateObjectTagsInitialStateValue: UpdateObjectTagsActionState = { status: 'idle' };
+
+export async function updateObjectTagsAction(
+  _previousState: UpdateObjectTagsActionState,
+  formData: FormData,
+): Promise<UpdateObjectTagsActionState> {
+  if (!isDatabaseConfigured()) {
+    return {
+      status: 'error',
+      message: 'DATABASE_URL is missing, so tag edits stay demo-safe for now. Configure the DB to persist tags.',
+    };
+  }
+
+  const parsed = updateObjectTagsSchema.safeParse({
+    objectId: formData.get('objectId'),
+    tags: formData.get('tags') ?? '',
+  });
+
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: parsed.error.issues[0]?.message ?? 'Tag update is incomplete.',
+    };
+  }
+
+  try {
+    const db = getDb();
+
+    const existingObject = await db.object.findUnique({
+      where: { id: parsed.data.objectId },
+      select: { id: true, slug: true },
+    });
+
+    if (!existingObject) {
+      return { status: 'error', message: 'That object record no longer exists.' };
+    }
+
+    const tagSlugs = parsed.data.tags
+      .split(',')
+      .map((t) => t.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''))
+      .filter(Boolean);
+
+    await db.$transaction(async (tx) => {
+      await tx.objectTag.deleteMany({ where: { objectId: existingObject.id } });
+
+      if (tagSlugs.length > 0) {
+        await tx.tag.createMany({
+          data: tagSlugs.map((slug) => ({ slug, name: slug.replace(/-/g, ' ') })),
+          skipDuplicates: true,
+        });
+
+        const allTags = await tx.tag.findMany({
+          where: { slug: { in: tagSlugs } },
+          select: { id: true },
+        });
+
+        await tx.objectTag.createMany({
+          data: allTags.map((tag) => ({ objectId: existingObject.id, tagId: tag.id })),
+          skipDuplicates: true,
+        });
+      }
+    });
+
+    revalidatePath('/app/objects');
+    revalidatePath(`/app/objects/${existingObject.slug}`);
+
+    return {
+      status: 'success',
+      message: tagSlugs.length > 0 ? `Tags updated: ${tagSlugs.join(', ')}.` : 'All tags removed.',
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tag update failed.';
+    return { status: 'error', message };
+  }
+}
+
+export { updateObjectTagsInitialStateValue as updateObjectTagsInitialState };
