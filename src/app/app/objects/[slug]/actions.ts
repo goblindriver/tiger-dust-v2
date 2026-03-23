@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth/session';
 import { getDb, isDatabaseConfigured } from '@/lib/db';
+import { getSupabaseServerClient } from '@/lib/supabase/server';
 
 export type UpdateObjectActionState = {
   status: 'idle' | 'success' | 'error';
@@ -349,3 +350,196 @@ export async function updateObjectTagsAction(
 }
 
 export { updateObjectTagsInitialStateValue as updateObjectTagsInitialState };
+
+// ─── Media actions ────────────────────────────────────────────────────────────
+
+export type MediaActionState = {
+  status: 'idle' | 'success' | 'error';
+  message?: string;
+};
+
+const mediaActionInitialState: MediaActionState = { status: 'idle' };
+export { mediaActionInitialState as uploadMediaInitialState };
+
+const MEDIA_BUCKET = process.env.MEDIA_BUCKET ?? 'tiger-dust-media';
+
+export async function uploadMediaAction(
+  objectId: string,
+  _prevState: MediaActionState,
+  formData: FormData,
+): Promise<MediaActionState> {
+  if (!isDatabaseConfigured()) {
+    return { status: 'error', message: 'Database not configured — uploads unavailable in demo mode.' };
+  }
+
+  const file = formData.get('file');
+  if (!file || typeof file === 'string') {
+    return { status: 'error', message: 'No file selected.' };
+  }
+
+  const fileEntry = file as File;
+  if (!fileEntry.name || fileEntry.size === 0) {
+    return { status: 'error', message: 'Selected file appears empty.' };
+  }
+
+  const supabase = getSupabaseServerClient();
+  if (!supabase) {
+    return { status: 'error', message: 'Storage not configured — SUPABASE_SERVICE_ROLE_KEY is missing.' };
+  }
+
+  try {
+    const db = getDb();
+    const user = await getCurrentUser();
+    const actorUserId = user?.source === 'database' ? user.id : undefined;
+
+    const existingObject = await db.object.findUnique({
+      where: { id: objectId },
+      select: { id: true, slug: true, primaryImageId: true },
+    });
+    if (!existingObject) {
+      return { status: 'error', message: 'Object not found.' };
+    }
+
+    const timestamp = Date.now();
+    const safeName = fileEntry.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storagePath = `objects/${objectId}/${timestamp}-${safeName}`;
+
+    const buffer = Buffer.from(await fileEntry.arrayBuffer());
+    const { error: uploadError } = await supabase.storage
+      .from(MEDIA_BUCKET)
+      .upload(storagePath, buffer, { contentType: fileEntry.type, upsert: false });
+
+    if (uploadError) {
+      return { status: 'error', message: `Storage upload failed: ${uploadError.message}` };
+    }
+
+    const isFirstPrimary = !existingObject.primaryImageId;
+
+    await db.$transaction(async (tx) => {
+      const asset = await tx.mediaAsset.create({
+        data: {
+          objectId,
+          storagePath,
+          kind: 'photo',
+          mimeType: fileEntry.type || null,
+          originalFilename: fileEntry.name,
+          fileSizeBytes: BigInt(fileEntry.size),
+          isPrimary: isFirstPrimary,
+          shotByUserId: actorUserId,
+        },
+      });
+
+      if (isFirstPrimary) {
+        await tx.object.update({
+          where: { id: objectId },
+          data: { primaryImageId: asset.id },
+        });
+      }
+    });
+
+    revalidatePath('/app/objects');
+    revalidatePath(`/app/objects/${existingObject.slug ?? objectId}`);
+
+    return { status: 'success', message: isFirstPrimary ? 'Image uploaded and set as primary.' : 'Image uploaded.' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Upload failed.';
+    return { status: 'error', message };
+  }
+}
+
+export async function setPrimaryImageAction(
+  objectId: string,
+  assetId: string,
+  _prevState: MediaActionState,
+  _formData: FormData,
+): Promise<MediaActionState> {
+  if (!isDatabaseConfigured()) {
+    return { status: 'error', message: 'Database not configured.' };
+  }
+
+  try {
+    const db = getDb();
+
+    const asset = await db.mediaAsset.findUnique({
+      where: { id: assetId },
+      select: { id: true, objectId: true },
+    });
+    if (!asset || asset.objectId !== objectId) {
+      return { status: 'error', message: 'Asset not found.' };
+    }
+
+    const obj = await db.object.findUnique({ where: { id: objectId }, select: { slug: true } });
+
+    await db.$transaction(async (tx) => {
+      await tx.mediaAsset.updateMany({
+        where: { objectId, isPrimary: true },
+        data: { isPrimary: false },
+      });
+      await tx.mediaAsset.update({
+        where: { id: assetId },
+        data: { isPrimary: true },
+      });
+      await tx.object.update({
+        where: { id: objectId },
+        data: { primaryImageId: assetId },
+      });
+    });
+
+    revalidatePath('/app/objects');
+    revalidatePath(`/app/objects/${obj?.slug ?? objectId}`);
+
+    return { status: 'success', message: 'Primary image updated.' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to set primary image.';
+    return { status: 'error', message };
+  }
+}
+
+export async function deleteMediaAssetAction(
+  assetId: string,
+  objectId: string,
+  _prevState: MediaActionState,
+  _formData: FormData,
+): Promise<MediaActionState> {
+  if (!isDatabaseConfigured()) {
+    return { status: 'error', message: 'Database not configured.' };
+  }
+
+  try {
+    const db = getDb();
+
+    const asset = await db.mediaAsset.findUnique({
+      where: { id: assetId },
+      select: { id: true, storagePath: true, isPrimary: true, objectId: true },
+    });
+    if (!asset || asset.objectId !== objectId) {
+      return { status: 'error', message: 'Asset not found.' };
+    }
+
+    const obj = await db.object.findUnique({ where: { id: objectId }, select: { slug: true } });
+
+    // Delete from storage (best-effort — don't block DB cleanup on storage error)
+    const supabase = getSupabaseServerClient();
+    if (supabase) {
+      await supabase.storage.from(MEDIA_BUCKET).remove([asset.storagePath]);
+    }
+
+    await db.$transaction(async (tx) => {
+      if (asset.isPrimary) {
+        await tx.object.update({
+          where: { id: objectId },
+          data: { primaryImageId: null },
+        });
+      }
+      await tx.mediaAsset.delete({ where: { id: assetId } });
+    });
+
+    revalidatePath('/app/objects');
+    revalidatePath(`/app/objects/${obj?.slug ?? objectId}`);
+
+    return { status: 'success', message: 'Asset deleted.' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Delete failed.';
+    return { status: 'error', message };
+  }
+}

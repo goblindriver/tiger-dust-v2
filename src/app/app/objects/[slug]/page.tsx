@@ -3,9 +3,11 @@ import { notFound } from 'next/navigation';
 import { SiteShell } from '@/components/site-shell';
 import { getObjectBySlug, getObjectReferenceOptions, getObjectWorkflowSummary } from '@/features/objects/data';
 import { getDb, isDatabaseConfigured } from '@/lib/db';
+import { getMediaPublicUrl } from '@/lib/supabase/server';
 import { ObjectDetailEditForm } from './object-detail-edit-form';
 import { TagEditor } from './tag-editor';
 import { WorkflowEventForm } from './workflow-event-form';
+import { MediaUploadForm, type MediaAssetProp } from './media-upload-form';
 
 function money(value: number | null) {
   if (value === null) return '—';
@@ -49,19 +51,49 @@ export default async function ObjectDetailPage({ params }: { params: Promise<{ s
 
   let dbObjectTypes: string[] | null = null;
   let dbLocations: string[] | null = null;
+  let mediaAssets: MediaAssetProp[] = [];
+  let primaryImagePublicUrl: string | null = null;
 
   if (isDatabaseConfigured()) {
     try {
       const db = getDb();
-      const [objectTypes, locations] = await Promise.all([
+      const [objectTypes, locations, dbMediaAssets] = await Promise.all([
         db.objectType.findMany({ where: { isActive: true }, select: { slug: true }, orderBy: { sortOrder: 'asc' } }),
         db.location.findMany({ where: { isActive: true }, select: { slug: true }, orderBy: { sortOrder: 'asc' } }),
+        db.mediaAsset.findMany({
+          where: { objectId: objectRecord.id },
+          select: { id: true, storagePath: true, kind: true, caption: true, isPrimary: true, mimeType: true },
+          orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+        }),
       ]);
       dbObjectTypes = objectTypes.map((t: { slug: string }) => t.slug);
       dbLocations = locations.map((l: { slug: string }) => l.slug);
+      mediaAssets = dbMediaAssets.map((a) => ({
+        id: a.id,
+        storagePath: a.storagePath,
+        publicUrl: getMediaPublicUrl(a.storagePath),
+        kind: a.kind,
+        caption: a.caption,
+        isPrimary: a.isPrimary,
+        mimeType: a.mimeType,
+      }));
+      if (objectRecord.primaryImagePath) {
+        primaryImagePublicUrl = getMediaPublicUrl(objectRecord.primaryImagePath);
+      }
     } catch {
       // fall through to hardcoded defaults
     }
+  } else if (objectRecord.primaryImagePath) {
+    primaryImagePublicUrl = getMediaPublicUrl(objectRecord.primaryImagePath);
+    mediaAssets = objectRecord.media.map((a) => ({
+      id: a.id,
+      storagePath: a.storagePath,
+      publicUrl: getMediaPublicUrl(a.storagePath),
+      kind: a.kind,
+      caption: a.caption,
+      isPrimary: a.isPrimary,
+      mimeType: null,
+    }));
   }
 
   const { objectTypeOptions, locationOptions, lifecycleStatusOptions, routeIntentOptions } =
@@ -84,6 +116,16 @@ export default async function ObjectDetailPage({ params }: { params: Promise<{ s
           </Link>
         </div>
       </section>
+
+      {primaryImagePublicUrl && (
+        <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <img
+            src={primaryImagePublicUrl}
+            alt={objectRecord.title}
+            style={{ width: '100%', maxHeight: '360px', objectFit: 'cover', display: 'block' }}
+          />
+        </section>
+      )}
 
       <section className="grid grid-4">
         <article className="card stat-card">
@@ -181,7 +223,7 @@ export default async function ObjectDetailPage({ params }: { params: Promise<{ s
             <p className="eyebrow">Media + research</p>
             <div className="table-like">
               <div className="table-row"><strong>Primary image</strong><span>{objectRecord.primaryImagePath ?? 'Missing'}</span></div>
-              <div className="table-row"><strong>Media assets</strong><span>{objectRecord.media.length}</span></div>
+              <div className="table-row"><strong>Media assets</strong><span>{mediaAssets.length || objectRecord.media.length}</span></div>
               <div className="table-row"><strong>Research entries</strong><span>{objectRecord.research.length}</span></div>
             </div>
           </article>
@@ -252,22 +294,10 @@ export default async function ObjectDetailPage({ params }: { params: Promise<{ s
           </div>
         </article>
 
-        <article className="card">
-          <h2>Media</h2>
-          <div className="stack-list">
-            {objectRecord.media.length > 0 ? (
-              objectRecord.media.map((asset) => (
-                <div key={asset.id} className="mini-card">
-                  <strong>{asset.caption ?? asset.storagePath}</strong>
-                  <p className="muted compact">{asset.kind} · {asset.isPrimary ? 'primary' : 'secondary'}</p>
-                  <p className="muted compact code">{asset.storagePath}</p>
-                </div>
-              ))
-            ) : (
-              <p className="muted">No media assets yet.</p>
-            )}
-          </div>
-        </article>
+        <MediaUploadForm
+          objectId={objectRecord.id}
+          mediaAssets={mediaAssets}
+        />
       </section>
     </SiteShell>
   );

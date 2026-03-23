@@ -18,6 +18,13 @@ export function getSupabaseServerClient() {
   });
 }
 
+export function getMediaPublicUrl(storagePath: string): string {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const bucket = process.env.MEDIA_BUCKET ?? 'tiger-dust-media';
+  if (!supabaseUrl) return storagePath;
+  return `${supabaseUrl}/storage/v1/object/public/${bucket}/${storagePath}`;
+}
+
 export async function getSupabaseSessionClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
