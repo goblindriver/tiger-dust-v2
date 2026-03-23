@@ -177,13 +177,55 @@ export async function createObjectAction(
         },
       });
 
+      // Create tag links from the comma-separated tags field
+      if (parsed.data.tags) {
+        const tagSlugs = parsed.data.tags
+          .split(',')
+          .map((t) => t.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''))
+          .filter(Boolean);
+
+        if (tagSlugs.length > 0) {
+          const existingTags = await tx.tag.findMany({
+            where: { slug: { in: tagSlugs } },
+            select: { id: true, slug: true },
+          });
+
+          const existingSlugs = new Set(existingTags.map((t) => t.slug));
+
+          // Create any tags that don't exist yet
+          const newTagSlugs = tagSlugs.filter((s) => !existingSlugs.has(s));
+          if (newTagSlugs.length > 0) {
+            await tx.tag.createMany({
+              data: newTagSlugs.map((slug) => ({
+                slug,
+                name: slug.replace(/-/g, ' '),
+              })),
+              skipDuplicates: true,
+            });
+          }
+
+          const allTags = await tx.tag.findMany({
+            where: { slug: { in: tagSlugs } },
+            select: { id: true },
+          });
+
+          await tx.objectTag.createMany({
+            data: allTags.map((tag) => ({ objectId: object.id, tagId: tag.id })),
+            skipDuplicates: true,
+          });
+        }
+      }
+
       return object;
     });
 
     revalidatePath('/app/objects');
     revalidatePath(`/app/objects/${created.slug ?? created.id}`);
-    redirect(`/app/objects/${created.slug ?? created.id}`);
+    const redirectSlug = created.slug ?? created.id;
+    redirect(`/app/objects/${redirectSlug}`);
   } catch (error) {
+    // Next.js redirect() throws a special error — rethrow it so it works correctly
+    if (error instanceof Error && error.message === 'NEXT_REDIRECT') throw error;
     const message = error instanceof Error ? error.message : 'Object create failed.';
 
     return {

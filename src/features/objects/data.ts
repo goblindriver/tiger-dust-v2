@@ -218,7 +218,12 @@ const demoObjects: ObjectDetail[] = [
   },
 ];
 
-const objectTypeOptions = ['lamp', 'jewelry', 'book', 'oddity', 'taxidermy', 'crystal', 'fossil', 'decor', 'artwork'];
+const objectTypeOptions = [
+  'lamp', 'chandelier', 'jewelry', 'taxidermy', 'skull', 'crystal', 'fossil', 'specimen',
+  'artwork', 'print', 'book', 'media', 'decor', 'furniture', 'oddity', 'ritual-object',
+  'collectible', 'garment', 'shirt', 'accessory', 'mask', 'signage', 'arcade', 'archive-item',
+  'tool', 'supplies',
+];
 
 const locationOptions = [
   'intake-holding',
@@ -226,9 +231,13 @@ const locationOptions = [
   'jewelry-studio',
   'guest-house-staging',
   'photo-station',
-  'research-hold',
+  'screen-printing',
   'store-sales-floor',
+  'store-front-window',
+  'store-back-room',
+  'store-counter-display',
   'archive-storage',
+  'liquidation-holding',
 ];
 
 function formatDbObject(record: any): ObjectDetail {
@@ -382,10 +391,10 @@ export function getObjectReferenceOptions() {
   return {
     objectTypeOptions,
     locationOptions,
-    lifecycleStatusOptions: ['acquired', 'intake', 'processing', 'ready'],
-    routeIntentOptions: ['undecided', 'storefront', 'website-feature', 'archive', 'liquidation', 'hold'],
-    intakeStageOptions: ['minimal', 'enriched', 'complete'],
-    visibilityOptions: ['internal', 'private-client', 'public'],
+    lifecycleStatusOptions: ['acquired', 'intake', 'processing', 'ready', 'published', 'sold', 'archived', 'inactive'],
+    routeIntentOptions: ['undecided', 'storefront', 'website-feature', 'archive', 'liquidation', 'hold', 'consignment', 'event'],
+    intakeStageOptions: ['draft', 'minimal', 'enriched', 'review-ready', 'complete'],
+    visibilityOptions: ['internal', 'public', 'archived'],
   };
 }
 
